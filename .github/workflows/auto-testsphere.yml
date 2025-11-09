@@ -3,15 +3,18 @@ name: Auto Cross-Browser Test
 on:
   push:
     paths:
-      - "ocbc-demo/**"     # only trigger when frontend changes
+      - "ocbc-testsphere/ocbc-demo/**"
       - ".github/workflows/auto-testsphere.yml"
     branches:
       - main
-      - master
 
 jobs:
   visual-test:
     runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ocbc-testsphere   # default directory for all "run:" steps
 
     steps:
       - name: Checkout repository
