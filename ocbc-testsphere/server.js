@@ -21,7 +21,8 @@ const state = {
 app.use('/dashboard', express.static(path.join(__dirname, 'web')));
 // Serve generated artifacts
 app.use('/artifacts', express.static(RUNS_DIR));
-
+// Serve OCBC demo website
+app.use('/ocbc-demo', express.static(path.join(__dirname, 'ocbc-demo')));
 // API: list runs (newest first)
 app.get('/api/runs', (req, res) => {
   const arr = Object.values(state.runs).sort((a,b) => b.createdAt - a.createdAt);
@@ -77,7 +78,7 @@ app.post('/api/run', async (req, res) => {
       // small settle wait for animations
       await page.waitForTimeout(500);
       const outPath = path.join(dir, `${t.name}.png`);
-      await page.screenshot({ path: outPath, fullPage: true });
+      await page.screenshot({ path: outPath });
       await browser.close();
       run.results[t.name] = { screenshot: `/artifacts/${id}/${t.name}.png`, ok: true };
     }
