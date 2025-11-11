@@ -7,7 +7,9 @@
     "start": "node server.js",
     "dev": "node server.js",
     "format": "prettier --write .",
-    "test:install": "npx playwright install --with-deps"
+    "test:install": "npx playwright install --with-deps",
+    "ci:run": "node ci-run.js",
+    "watch:demo": "nodemon --watch ocbc-demo --ext html,css,js --exec \"node ci-run.js\""
   },
   "dependencies": {
     "express": "^4.19.2",
@@ -18,6 +20,8 @@
     "uuid": "^9.0.1"
   },
   "devDependencies": {
-    "prettier": "^3.3.3"
+    "nodemon": "^3.1.10",
+    "prettier": "^3.3.3",
+    "wait-on": "^9.0.3"
   }
 }
