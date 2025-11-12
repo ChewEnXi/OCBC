@@ -8,6 +8,7 @@
     "dev": "node server.js",
     "format": "prettier --write .",
     "test:install": "npx playwright install --with-deps",
+    "postinstall": "npx playwright install --with-deps",
     "ci:run": "node ci-run.js",
     "watch:demo": "nodemon --watch ocbc-demo --ext html,css,js --exec \"node ci-run.js\""
   },
