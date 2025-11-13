@@ -3,7 +3,7 @@ name: Auto Cross-Browser Test
 on:
   push:
     paths:
-      - "ocbc-testsphere/**"                  # watch the whole project
+      - "ocbc-testsphere/**"                  # watch the whole TestSphere project
       - ".github/workflows/auto-testsphere.yml"
     branches:
       - main
@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
-    # 👇 all `run:` commands execute inside ocbc-testsphere
+    # all `run:` commands execute inside ocbc-testsphere
     defaults:
       run:
         working-directory: ocbc-testsphere
@@ -30,24 +30,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps
-
-      - name: Start OCBC TestSphere server
-        run: |
-          node server.js > server.log 2>&1 &
-          npx wait-on --timeout 600000 http://127.0.0.1:8080/api/health
-
-      - name: Run cross-browser visual regression
+      - name: Trigger Render TestSphere run
         env:
-          TARGET_URL: "http://127.0.0.1:8080/ocbc-demo/"
-          MISMATCH_THRESHOLD: "5"
+          # Public URL of your deployed TestSphere on Render
+          TESTSPHERE_BASE: "https://ocbc-fyui.onrender.com"
+          # Page to test (hosted by the same Render service)
+          TARGET_URL: "https://ocbc-fyui.onrender.com/ocbc-demo/"
+          # Shared secret – comes from GitHub Actions secret
+          TESTSPHERE_TOKEN: ${{ secrets.TESTSPHERE_TOKEN }}
         run: node ci-run.js
-
-      - name: Upload visual artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ocbc-testsphere-artifacts
-          path: runs/
-          if-no-files-found: ignore

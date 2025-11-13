@@ -17,6 +17,7 @@
 npm ci
 npm run test:install   # installs Playwright browsers & OS deps
 npm start              # http://localhost:8080/dashboard
+npm run watch:demo
 ```
 Then enter a URL to test (e.g., https://www.ocbc.com/).
 

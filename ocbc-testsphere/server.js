@@ -1,3 +1,218 @@
+
+// const express = require('express');
+// const path = require('path');
+// const fs = require('fs');
+// const { v4: uuidv4 } = require('uuid');
+// const pixelmatch = require('pixelmatch');
+// const { PNG } = require('pngjs');
+// const { chromium, firefox, webkit } = require('playwright');
+
+// const app = express();
+// app.use(express.json());
+
+// const RUNS_DIR = path.join(__dirname, 'runs');
+// if (!fs.existsSync(RUNS_DIR)) fs.mkdirSync(RUNS_DIR);
+
+// const state = {
+//   // runId -> {
+//   //   id, url, status, createdAt,
+//   //   results: { [browser]: { screenshot, ok, error?, duration? } },
+//   //   diffs: { [browser]: { against, diffPath, mismatchPct, note? } }
+//   // }
+//   runs: {}
+// };
+
+// // Serve dashboard
+// app.use('/dashboard', express.static(path.join(__dirname, 'web')));
+// // Serve generated artifacts
+// app.use('/artifacts', express.static(RUNS_DIR));
+// // Serve OCBC demo website
+// app.use('/ocbc-demo', express.static(path.join(__dirname, 'ocbc-demo')));
+
+// // API: list runs (newest first)
+// app.get('/api/runs', (req, res) => {
+//   const arr = Object.values(state.runs).sort((a, b) => b.createdAt - a.createdAt);
+//   res.json(arr);
+// });
+
+// // API: get run by id
+// app.get('/api/run/:id', (req, res) => {
+//   const run = state.runs[req.params.id];
+//   if (!run) return res.status(404).json({ error: 'not found' });
+//   res.json(run);
+// });
+
+// // API: trigger a run
+// app.post('/api/run', async (req, res) => {
+//   const url = (req.body && req.body.url) || '';
+//   if (!/^https?:\/\//i.test(url) && !/^\//.test(url)) {
+//     return res.status(400).json({
+//       error: 'Provide a valid http(s) URL (or a path served by this server).'
+//     });
+//   }
+
+//   const id = uuidv4();
+//   const run = {
+//     id,
+//     url,
+//     status: 'queued',
+//     createdAt: Date.now(),
+//     results: {},
+//     diffs: {},
+//     note: 'Baseline: chromium. Diff: firefox & webkit vs chromium.'
+//   };
+//   state.runs[id] = run;
+
+//   // respond immediately
+//   res.json({ id, status: run.status });
+
+//   // fire and forget
+//   run.status = 'running';
+//   try {
+//     const dir = path.join(RUNS_DIR, id);
+//     fs.mkdirSync(dir, { recursive: true });
+
+//     const targets = [
+//       { name: 'chromium', launcher: chromium },
+//       { name: 'firefox', launcher: firefox },
+//       { name: 'webkit', launcher: webkit }
+//     ];
+
+//     const viewport = { width: 1280, height: 800 };
+
+//     // ---- PARALLEL SCREENSHOTS ----
+//     await Promise.all(
+//       targets.map(async (t) => {
+//         let browser;
+//         try {
+//           const start = Date.now();
+//           console.log(`[${new Date().toLocaleTimeString()}][run ${id}] Launching ${t.name}...`);
+
+//           browser = await t.launcher.launch();
+//           const ctx = await browser.newContext({ viewport });
+//           const page = await ctx.newPage();
+
+//           await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 });
+//           // small settle wait for animations
+//           await page.waitForTimeout(500);
+
+//           const outPath = path.join(dir, `${t.name}.png`);
+//           await page.screenshot({ path: outPath }); // viewport-only for consistent size
+
+//           const duration = ((Date.now() - start) / 1000).toFixed(1);
+//           run.results[t.name] = {
+//             screenshot: `/artifacts/${id}/${t.name}.png`,
+//             ok: true,
+//             duration
+//           };
+//           console.log(
+//             `[${new Date().toLocaleTimeString()}][run ${id}] ✅ ${t.name} done (${duration}s)`
+//           );
+//         } catch (err) {
+//           console.error(
+//             `[${new Date().toLocaleTimeString()}][run ${id}] ❌ ${t.name} failed:`,
+//             err
+//           );
+//           run.results[t.name] = {
+//             screenshot: null,
+//             ok: false,
+//             error: err.message
+//           };
+//         } finally {
+//           if (browser) {
+//             await browser.close().catch(() => {});
+//           }
+//         }
+//       })
+//     );
+
+//     // ---- DIFF FIREFOX & WEBKIT AGAINST CHROMIUM ----
+//     const baselinePath = path.join(dir, 'chromium.png');
+
+//     if (!fs.existsSync(baselinePath)) {
+//       console.error(`[run ${id}] No chromium baseline found, skipping diffs.`);
+//     } else {
+//       const baseline = PNG.sync.read(fs.readFileSync(baselinePath));
+
+//       for (const target of ['firefox', 'webkit']) {
+//         try {
+//           const targetPath = path.join(dir, `${target}.png`);
+//           if (!fs.existsSync(targetPath)) {
+//             console.warn(`[run ${id}] No screenshot for ${target}, skipping diff.`);
+//             run.diffs[target] = {
+//               against: 'chromium',
+//               diffPath: null,
+//               mismatchPct: null,
+//               note: 'No screenshot'
+//             };
+//             continue;
+//           }
+
+//           const targetPng = PNG.sync.read(fs.readFileSync(targetPath));
+
+//           // Use overlapping area in case of minor size differences
+//           const width = Math.min(baseline.width, targetPng.width);
+//           const height = Math.min(baseline.height, targetPng.height);
+//           const area = width * height;
+
+//           const baseCrop = new PNG({ width, height });
+//           const targetCrop = new PNG({ width, height });
+
+//           PNG.bitblt(baseline, baseCrop, 0, 0, width, height, 0, 0);
+//           PNG.bitblt(targetPng, targetCrop, 0, 0, width, height, 0, 0);
+
+//           const diff = new PNG({ width, height });
+//           const mismatched = pixelmatch(
+//             baseCrop.data,
+//             targetCrop.data,
+//             diff.data,
+//             width,
+//             height,
+//             { threshold: 0.1 }
+//           );
+
+//           const diffPath = path.join(dir, `${target}-vs-chromium-diff.png`);
+//           fs.writeFileSync(diffPath, PNG.sync.write(diff));
+
+//           const mismatchPct = Math.round((mismatched / area) * 10000) / 100; // 2 dp
+
+//           run.diffs[target] = {
+//             against: 'chromium',
+//             diffPath: `/artifacts/${id}/${target}-vs-chromium-diff.png`,
+//             mismatchPct
+//           };
+//           console.log(`[run ${id}] Saved ${target} diff (${mismatchPct}%)`);
+//         } catch (err) {
+//           console.error(`[run ${id}] Error diffing ${target}:`, err);
+//           run.diffs[target] = {
+//             against: 'chromium',
+//             diffPath: null,
+//             mismatchPct: null,
+//             note: err.message
+//           };
+//         }
+//       }
+//     }
+
+//     run.status = 'done';
+//     run.duration = ((Date.now() - run.createdAt) / 1000).toFixed(1);
+//     console.log(`[run ${id}]  Total duration: ${run.duration}s`);
+//   } catch (e) {
+//     run.status = 'error';
+//     run.error = (e && e.message) || String(e);
+//     console.error('[run error]', e);
+//   }
+// });
+
+// // Healthcheck
+// app.get('/api/health', (req, res) => res.json({ ok: true }));
+
+
+//  const port = process.env.PORT || 8080;
+// app.listen(port, () => {
+//  console.log(`OCBC TestSphere backend on http://localhost:${port}`);
+//  console.log(`Open dashboard: http://localhost:${port}/dashboard`);
+// });
 /* OCBC TestSphere — Express backend */
 const express = require('express');
 const path = require('path');
@@ -14,7 +229,12 @@ const RUNS_DIR = path.join(__dirname, 'runs');
 if (!fs.existsSync(RUNS_DIR)) fs.mkdirSync(RUNS_DIR);
 
 const state = {
-  runs: {} // runId -> { id, url, status, createdAt, results: { [browser]: { screenshot, ok } }, diffs: { [browser]: { against, diffPath, mismatchPct } } }
+  // runId -> {
+  //   id, url, status, createdAt,
+  //   results: { [browser]: { screenshot, ok, error?, duration? } },
+  //   diffs: { [browser]: { against, diffPath, mismatchPct, note? } }
+  // }
+  runs: {}
 };
 
 // Serve dashboard
@@ -23,9 +243,157 @@ app.use('/dashboard', express.static(path.join(__dirname, 'web')));
 app.use('/artifacts', express.static(RUNS_DIR));
 // Serve OCBC demo website
 app.use('/ocbc-demo', express.static(path.join(__dirname, 'ocbc-demo')));
+
+// ===== Helper to execute a run (shared by /api/run and /api/ci-run) =====
+async function executeVisualRun(run) {
+  const { id, url } = run;
+  run.status = 'running';
+
+  try {
+    const dir = path.join(RUNS_DIR, id);
+    fs.mkdirSync(dir, { recursive: true });
+
+    const targets = [
+      { name: 'chromium', launcher: chromium },
+      { name: 'firefox', launcher: firefox },
+      { name: 'webkit', launcher: webkit }
+    ];
+
+    const viewport = { width: 1280, height: 800 };
+
+    // ---- PARALLEL SCREENSHOTS ----
+    await Promise.all(
+      targets.map(async (t) => {
+        let browser;
+        try {
+          const start = Date.now();
+          console.log(
+            `[${new Date().toLocaleTimeString()}][run ${id}] Launching ${t.name}...`
+          );
+
+          browser = await t.launcher.launch();
+          const ctx = await browser.newContext({ viewport });
+          const page = await ctx.newPage();
+
+          await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 });
+          // small settle wait for animations
+          await page.waitForTimeout(500);
+
+          const outPath = path.join(dir, `${t.name}.png`);
+          await page.screenshot({ path: outPath }); // viewport-only for consistent size
+
+          const duration = ((Date.now() - start) / 1000).toFixed(1);
+          run.results[t.name] = {
+            screenshot: `/artifacts/${id}/${t.name}.png`,
+            ok: true,
+            duration
+          };
+          console.log(
+            `[${new Date().toLocaleTimeString()}][run ${id}] ✅ ${t.name} done (${duration}s)`
+          );
+        } catch (err) {
+          console.error(
+            `[${new Date().toLocaleTimeString()}][run ${id}] ❌ ${t.name} failed:`,
+            err
+          );
+          run.results[t.name] = {
+            screenshot: null,
+            ok: false,
+            error: err.message
+          };
+        } finally {
+          if (browser) {
+            await browser.close().catch(() => {});
+          }
+        }
+      })
+    );
+
+    // ---- DIFF FIREFOX & WEBKIT AGAINST CHROMIUM ----
+    const baselinePath = path.join(dir, 'chromium.png');
+
+    if (!fs.existsSync(baselinePath)) {
+      console.error(`[run ${id}] No chromium baseline found, skipping diffs.`);
+    } else {
+      const baseline = PNG.sync.read(fs.readFileSync(baselinePath));
+
+      for (const target of ['firefox', 'webkit']) {
+        try {
+          const targetPath = path.join(dir, `${target}.png`);
+          if (!fs.existsSync(targetPath)) {
+            console.warn(`[run ${id}] No screenshot for ${target}, skipping diff.`);
+            run.diffs[target] = {
+              against: 'chromium',
+              diffPath: null,
+              mismatchPct: null,
+              note: 'No screenshot'
+            };
+            continue;
+          }
+
+          const targetPng = PNG.sync.read(fs.readFileSync(targetPath));
+
+          // Use overlapping area in case of minor size differences
+          const width = Math.min(baseline.width, targetPng.width);
+          const height = Math.min(baseline.height, targetPng.height);
+          const area = width * height;
+
+          const baseCrop = new PNG({ width, height });
+          const targetCrop = new PNG({ width, height });
+
+          PNG.bitblt(baseline, baseCrop, 0, 0, width, height, 0, 0);
+          PNG.bitblt(targetPng, targetCrop, 0, 0, width, height, 0, 0);
+
+          const diff = new PNG({ width, height });
+          const mismatched = pixelmatch(
+            baseCrop.data,
+            targetCrop.data,
+            diff.data,
+            width,
+            height,
+            { threshold: 0.1 }
+          );
+
+          const diffPath = path.join(dir, `${target}-vs-chromium-diff.png`);
+          fs.writeFileSync(diffPath, PNG.sync.write(diff));
+
+          const mismatchPct = Math.round((mismatched / area) * 10000) / 100; // 2 dp
+
+          run.diffs[target] = {
+            against: 'chromium',
+            diffPath: `/artifacts/${id}/${target}-vs-chromium-diff.png`,
+            mismatchPct
+          };
+          console.log(`[run ${id}] Saved ${target} diff (${mismatchPct}%)`);
+        } catch (err) {
+          console.error(`[run ${id}] Error diffing ${target}:`, err);
+          run.diffs[target] = {
+            against: 'chromium',
+            diffPath: null,
+            mismatchPct: null,
+            note: err.message
+          };
+        }
+      }
+    }
+
+    run.status = 'done';
+    run.duration = ((Date.now() - run.createdAt) / 1000).toFixed(1);
+    console.log(`[run ${id}]  Total duration: ${run.duration}s`);
+  } catch (e) {
+    run.status = 'error';
+    run.error = (e && e.message) || String(e);
+    console.error('[run error]', e);
+  }
+}
+
+// ================= API ROUTES =================
+
 // API: list runs (newest first)
 app.get('/api/runs', (req, res) => {
-  const arr = Object.values(state.runs).sort((a,b) => b.createdAt - a.createdAt);
+  const arr = Object.values(state.runs).sort(
+    (a, b) => b.createdAt - a.createdAt
+  );
   res.json(arr);
 });
 
@@ -36,11 +404,13 @@ app.get('/api/run/:id', (req, res) => {
   res.json(run);
 });
 
-// API: trigger a run
+// Public API: trigger a run (used by dashboard + local dev)
 app.post('/api/run', async (req, res) => {
   const url = (req.body && req.body.url) || '';
   if (!/^https?:\/\//i.test(url) && !/^\//.test(url)) {
-    return res.status(400).json({ error: 'Provide a valid http(s) URL (or a path served by this server).' });
+    return res.status(400).json({
+      error: 'Provide a valid http(s) URL (or a path served by this server).'
+    });
   }
 
   const id = uuidv4();
@@ -54,60 +424,47 @@ app.post('/api/run', async (req, res) => {
     note: 'Baseline: chromium. Diff: firefox & webkit vs chromium.'
   };
   state.runs[id] = run;
+
+  // respond immediately
   res.json({ id, status: run.status });
 
   // fire and forget
-  run.status = 'running';
-  try {
-    const dir = path.join(RUNS_DIR, id);
-    fs.mkdirSync(dir, { recursive: true });
+  await executeVisualRun(run);
+});
 
-    const targets = [
-      { name: 'chromium', launcher: chromium },
-      { name: 'firefox', launcher: firefox },
-      { name: 'webkit', launcher: webkit }
-    ];
+// CI-only API: trigger a run with shared secret
+app.post('/api/ci-run', async (req, res) => {
+  const authHeader = req.headers['authorization'] || '';
+  const token = authHeader.startsWith('Bearer ')
+    ? authHeader.slice(7).trim()
+    : null;
 
-    const viewport = { width: 1280, height: 800 };
-    // Take screenshots per browser
-    for (const t of targets) {
-      const browser = await t.launcher.launch();
-      const ctx = await browser.newContext({ viewport });
-      const page = await ctx.newPage();
-      await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 });
-      // small settle wait for animations
-      await page.waitForTimeout(500);
-      const outPath = path.join(dir, `${t.name}.png`);
-      await page.screenshot({ path: outPath });
-      await browser.close();
-      run.results[t.name] = { screenshot: `/artifacts/${id}/${t.name}.png`, ok: true };
-    }
-
-    // Diff firefox and webkit against chromium
-    const baseline = PNG.sync.read(fs.readFileSync(path.join(dir, 'chromium.png')));
-    const baselineArea = baseline.width * baseline.height;
-    for (const target of ['firefox', 'webkit']) {
-      const targetPng = PNG.sync.read(fs.readFileSync(path.join(dir, `${target}.png`)));
-      const { width, height } = baseline;
-      // Resize mismatch guard
-      if (targetPng.width !== width || targetPng.height !== height) {
-        run.diffs[target] = { against: 'chromium', diffPath: null, mismatchPct: 100, note: 'Size differs' };
-        continue;
-        }
-      const diff = new PNG({ width, height });
-      const mismatched = pixelmatch(baseline.data, targetPng.data, diff.data, width, height, { threshold: 0.1 });
-      const diffPath = path.join(dir, `${target}-vs-chromium-diff.png`);
-      fs.writeFileSync(diffPath, PNG.sync.write(diff));
-      const mismatchPct = Math.round((mismatched / baselineArea) * 10000) / 100; // 2 dp
-      run.diffs[target] = { against: 'chromium', diffPath: `/artifacts/${id}/${target}-vs-chromium-diff.png`, mismatchPct };
-    }
-
-    run.status = 'done';
-  } catch (e) {
-    run.status = 'error';
-    run.error = (e && e.message) || String(e);
-    console.error('[run error]', e);
+  if (process.env.TESTSPHERE_TOKEN && token !== process.env.TESTSPHERE_TOKEN) {
+    return res.status(401).json({ error: 'Unauthorized: invalid token' });
   }
+
+  const url = (req.body && req.body.url) || '';
+  if (!/^https?:\/\//i.test(url) && !/^\//.test(url)) {
+    return res.status(400).json({
+      error: 'Provide a valid http(s) URL (or a path served by this server).'
+    });
+  }
+
+  const id = uuidv4();
+  const run = {
+    id,
+    url,
+    status: 'queued',
+    createdAt: Date.now(),
+    results: {},
+    diffs: {},
+    note: 'CI-triggered run. Baseline: chromium. Diff: firefox & webkit vs chromium.'
+  };
+  state.runs[id] = run;
+
+  res.json({ id, status: run.status });
+
+  await executeVisualRun(run);
 });
 
 // Healthcheck
