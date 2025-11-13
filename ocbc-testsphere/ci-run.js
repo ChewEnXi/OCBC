@@ -1,62 +1,41 @@
-// ci-run.js
-// Trigger an OCBC TestSphere run.
-// - Local dev: hits http://127.0.0.1:8080/api/run (no auth)
-// - CI (GitHub): hits https://ocbc-fyui.onrender.com/api/ci-run with Bearer token
+// ocbc-testsphere/ci-run.js
+// Trigger a TestSphere run (works both locally and from GitHub Actions)
 
-const fetch = (...args) => import('node-fetch').then(({ default: f }) => f(...args));
+const fetch = (...args) =>
+  import('node-fetch').then(({ default: f }) => f(...args));
 
 (async () => {
-  const targetUrl =
-    process.env.TARGET_URL || 'http://127.0.0.1:8080/ocbc-demo/';
+  const base = process.env.TESTSPHERE_BASE || 'http://127.0.0.1:8080';
 
-  // Where the TestSphere backend is running
-  const base =
-    process.env.TESTSPHERE_BASE || 'http://127.0.0.1:8080';
+  // What page to test
+  const urlToTest =
+    process.env.TARGET_URL || `${base.replace(/\/$/, '')}/ocbc-demo/`;
+
+  // ✅ use /api/run (this route exists on your server)
+  const endpoint = `${base.replace(/\/$/, '')}/api/run`;
 
   const token = process.env.TESTSPHERE_TOKEN;
-
-  // If we have a token AND we're not talking to localhost,
-  // use the protected CI endpoint.
-  const isLocal =
-    base.includes('127.0.0.1') || base.includes('localhost');
-  const useCiEndpoint = !!token && !isLocal;
-
-  const endpoint = useCiEndpoint ? '/api/ci-run' : '/api/run';
-  const url = `${base}${endpoint}`;
-
-  console.log(`🚀 Triggering TestSphere run for: ${targetUrl}`);
-  console.log(`➡  POST ${url}`);
-  if (useCiEndpoint) {
-    console.log('🔒 Using CI endpoint with Bearer TESTSPHERE_TOKEN');
-  } else {
-    console.log('🧪 Using open /api/run endpoint (local dev)');
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) {
+    headers['x-testsphere-token'] = token; // optional, backend ignores it for now
   }
 
-  try {
-    const headers = { 'Content-Type': 'application/json' };
-    if (useCiEndpoint) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
+  console.log(`🚀 Triggering TestSphere run for: ${urlToTest}`);
+  console.log(`➡️  POST ${endpoint}`);
 
-    const res = await fetch(url, {
+  try {
+    const res = await fetch(endpoint, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ url: targetUrl })
+      body: JSON.stringify({ url: urlToTest }),
     });
 
-    const text = await res.text();
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      data = text;
-    }
-
     if (!res.ok) {
-      console.error('❌ Failed to trigger run:', res.status, data);
-      process.exit(1);
+      const text = await res.text();
+      throw new Error(`${res.status} ${text}`);
     }
 
+    const data = await res.json();
     console.log('✅ Run started:', data);
   } catch (err) {
     console.error('❌ Failed to trigger run:', err.message || err);
