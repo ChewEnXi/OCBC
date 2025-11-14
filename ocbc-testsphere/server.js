@@ -213,14 +213,13 @@
 //  console.log(`OCBC TestSphere backend on http://localhost:${port}`);
 //  console.log(`Open dashboard: http://localhost:${port}/dashboard`);
 // });
-/* OCBC TestSphere — Express backend */
-const express = require('express');
-const path = require('path');
-const fs = require('fs');
-const { v4: uuidv4 } = require('uuid');
-const pixelmatch = require('pixelmatch');
-const { PNG } = require('pngjs');
-const { chromium, firefox, webkit } = require('playwright');
+const express = require("express");
+const path = require("path");
+const fs = require("fs");
+const { v4: uuidv4 } = require("uuid");
+const pixelmatch = require("pixelmatch");
+const { PNG } = require("pngjs");
+const { chromium, firefox, webkit } = require("playwright");
 
 const app = express();
 app.use(express.json());
@@ -250,17 +249,17 @@ function normalizeRun(run) {
 
   // If screenshots are there but status never got updated, mark as done
   if (
-    (run.status === 'running' || run.status === 'queued') &&
+    (run.status === "running" || run.status === "queued") &&
     (hasChromium || hasWebkit)
   ) {
-    run.status = 'done';
+    run.status = "done";
   }
 
   // Make sure diffs object exists
   if (!run.diffs) run.diffs = {};
 
   // Guarantee entries for firefox & webkit
-  ['firefox', 'webkit'].forEach((browser) => {
+  ["firefox", "webkit"].forEach((browser) => {
     // If we already have a real diff from pixelmatch, keep it
     if (run.diffs[browser] && run.diffs[browser].diffPath) return;
 
@@ -272,10 +271,10 @@ function normalizeRun(run) {
     if (result && result.screenshot) {
       // Fallback: use the raw browser screenshot as "diff"
       run.diffs[browser] = {
-        against: 'chromium',
+        against: "chromium",
         diffPath: result.screenshot,
         mismatchPct: null, // unknown / not computed
-        note: 'No diff image generated; using browser screenshot as fallback.'
+        note: "No diff image generated; using browser screenshot as fallback.",
       };
     }
   });
@@ -283,12 +282,11 @@ function normalizeRun(run) {
   return run;
 }
 
-
 const ROOT_DIR = path.resolve(__dirname);
-const RUNS_DIR = path.join(ROOT_DIR, 'runs');
+const RUNS_DIR = path.join(ROOT_DIR, "runs");
 
-console.log('[startup] ROOT_DIR =', ROOT_DIR);
-console.log('[startup] RUNS_DIR =', RUNS_DIR);
+console.log("[startup] ROOT_DIR =", ROOT_DIR);
+console.log("[startup] RUNS_DIR =", RUNS_DIR);
 
 if (!fs.existsSync(RUNS_DIR)) {
   fs.mkdirSync(RUNS_DIR, { recursive: true });
@@ -304,86 +302,90 @@ const state = {
 };
 
 // Serve dashboard UI
-app.use('/dashboard', express.static(path.join(ROOT_DIR, 'web')));
+app.use("/dashboard", express.static(path.join(ROOT_DIR, "web")));
 // Serve generated artifacts (screenshots + diffs)
-app.use('/artifacts', express.static(RUNS_DIR));
+app.use("/artifacts", express.static(RUNS_DIR));
 // Serve OCBC demo website
-app.use('/ocbc-demo', express.static(path.join(ROOT_DIR, 'ocbc-demo')));
+app.use("/ocbc-demo", express.static(path.join(ROOT_DIR, "ocbc-demo")));
 
 // ===== Helper to execute a run (shared by /api/run and /api/ci-run) =====
 async function executeVisualRun(run) {
   const { id, url } = run;
-  run.status = 'running';
+  run.status = "running";
+  run.results = run.results || {};
+  run.diffs = run.diffs || {};
 
   try {
     const dir = path.join(RUNS_DIR, id);
     fs.mkdirSync(dir, { recursive: true });
 
     const targets = [
-      { name: 'chromium', launcher: chromium },
-      { name: 'firefox', launcher: firefox },
-      { name: 'webkit', launcher: webkit },
+      { name: "chromium", launcher: chromium },
+      { name: "firefox", launcher: firefox },
+      { name: "webkit", launcher: webkit },
     ];
 
     const viewport = { width: 1280, height: 800 };
 
-    // ---- PARALLEL SCREENSHOTS ----
-    await Promise.all(
-      targets.map(async (t) => {
-        let browser;
-        try {
-          const start = Date.now();
-          console.log(
-            `[${new Date().toLocaleTimeString()}][run ${id}] Launching ${t.name}...`
-          );
+    // ------------ 1) TAKE SCREENSHOTS (SEQUENTIAL) ------------
+    for (const t of targets) {
+      let browser;
+      try {
+        const start = Date.now();
+        console.log(
+          `[${new Date().toLocaleTimeString()}][run ${id}] Launching ${t.name}...`
+        );
 
-          browser = await t.launcher.launch();
-          const ctx = await browser.newContext({ viewport });
-          const page = await ctx.newPage();
+        browser = await t.launcher.launch({ headless: true });
+        const ctx = await browser.newContext({ viewport });
+        const page = await ctx.newPage();
 
-          await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 });
-          // small settle wait for animations
-          await page.waitForTimeout(500);
+        // a bit less strict than "networkidle" – more forgiving on Render
+        await page.goto(url, {
+          waitUntil: "domcontentloaded",
+          timeout: 60_000,
+        });
+        await page.waitForTimeout(500);
 
-          const outPath = path.join(dir, `${t.name}.png`);
-          await page.screenshot({ path: outPath }); // viewport-only for consistent size
+        const outPath = path.join(dir, `${t.name}.png`);
+        await page.screenshot({ path: outPath, fullPage: true });
 
-          const duration = ((Date.now() - start) / 1000).toFixed(1);
-          run.results[t.name] = {
-            screenshot: `/artifacts/${id}/${t.name}.png`,
-            ok: true,
-            duration,
-          };
-          console.log(
-            `[${new Date().toLocaleTimeString()}][run ${id}] ✅ ${t.name} done (${duration}s)`
-          );
-        } catch (err) {
-          console.error(
-            `[${new Date().toLocaleTimeString()}][run ${id}] ❌ ${t.name} failed:`,
-            err
-          );
-          run.results[t.name] = {
-            screenshot: null,
-            ok: false,
-            error: err.message,
-          };
-        } finally {
-          if (browser) {
-            await browser.close().catch(() => {});
-          }
+        const duration = ((Date.now() - start) / 1000).toFixed(1);
+        run.results[t.name] = {
+          screenshot: `/artifacts/${id}/${t.name}.png`,
+          ok: true,
+          duration,
+        };
+
+        console.log(
+          `[${new Date().toLocaleTimeString()}][run ${id}] ✅ ${t.name} done (${duration}s)`
+        );
+      } catch (err) {
+        console.error(
+          `[${new Date().toLocaleTimeString()}][run ${id}] ❌ ${t.name} failed:`,
+          err
+        );
+        run.results[t.name] = {
+          screenshot: null,
+          ok: false,
+          error: err.message,
+        };
+      } finally {
+        if (browser) {
+          await browser.close().catch(() => {});
         }
-      })
-    );
+      }
+    }
 
-    // ---- DIFF FIREFOX & WEBKIT AGAINST CHROMIUM ----
-    const baselinePath = path.join(dir, 'chromium.png');
+    // ------------ 2) DIFF FIREFOX & WEBKIT AGAINST CHROMIUM ------------
+    const baselinePath = path.join(dir, "chromium.png");
 
     if (!fs.existsSync(baselinePath)) {
       console.error(`[run ${id}] No chromium baseline found, skipping diffs.`);
     } else {
       const baseline = PNG.sync.read(fs.readFileSync(baselinePath));
 
-      for (const target of ['firefox', 'webkit']) {
+      for (const target of ["firefox", "webkit"]) {
         try {
           const targetPath = path.join(dir, `${target}.png`);
           if (!fs.existsSync(targetPath)) {
@@ -391,17 +393,16 @@ async function executeVisualRun(run) {
               `[run ${id}] No screenshot for ${target}, skipping diff.`
             );
             run.diffs[target] = {
-              against: 'chromium',
+              against: "chromium",
               diffPath: null,
               mismatchPct: null,
-              note: 'No screenshot',
+              note: "No screenshot",
             };
             continue;
           }
 
           const targetPng = PNG.sync.read(fs.readFileSync(targetPath));
 
-          // Use overlapping area in case of minor size differences
           const width = Math.min(baseline.width, targetPng.width);
           const height = Math.min(baseline.height, targetPng.height);
           const area = width * height;
@@ -428,15 +429,18 @@ async function executeVisualRun(run) {
           const mismatchPct = Math.round((mismatched / area) * 10000) / 100; // 2 dp
 
           run.diffs[target] = {
-            against: 'chromium',
+            against: "chromium",
             diffPath: `/artifacts/${id}/${target}-vs-chromium-diff.png`,
             mismatchPct,
           };
-          console.log(`[run ${id}] Saved ${target} diff (${mismatchPct}%)`);
+
+          console.log(
+            `[run ${id}] Saved ${target} diff (${mismatchPct}%) at ${run.diffs[target].diffPath}`
+          );
         } catch (err) {
           console.error(`[run ${id}] Error diffing ${target}:`, err);
           run.diffs[target] = {
-            against: 'chromium',
+            against: "chromium",
             diffPath: null,
             mismatchPct: null,
             note: err.message,
@@ -444,64 +448,39 @@ async function executeVisualRun(run) {
         }
       }
     }
-    // --- Fallback: ensure we always have diff entries for dashboard ---
-    if (!run.diffs) run.diffs = {};
 
-    ['firefox', 'webkit'].forEach((browser) => {
-      const result =
-        run.results &&
-        run.results[browser] &&
-        run.results[browser].ok &&
-        run.results[browser].screenshot
-          ? run.results[browser]
-          : null;
-
-      // If no diff was generated above but we have a screenshot,
-      // use the browser screenshot itself as the "diff" image.
-      if (!run.diffs[browser] && result) {
-        run.diffs[browser] = {
-          against: 'chromium',
-          diffPath: result.screenshot,        // <-- important!
-          mismatchPct: null,
-          note: 'Fallback: using browser screenshot as diff image.'
-        };
-        console.log(
-          `[run ${id}] Fallback diff for ${browser} -> ${run.diffs[browser].diffPath}`
-        );
-      }
-    });
-
-    run.status = 'done';
+    // ------------ 3) FINISH RUN ------------
+    run.status = "done";
     run.duration = ((Date.now() - run.createdAt) / 1000).toFixed(1);
     console.log(`[run ${id}]  Total duration: ${run.duration}s`);
   } catch (e) {
-    run.status = 'error';
+    run.status = "error";
     run.error = (e && e.message) || String(e);
-    console.error('[run error]', e);
+    console.error("[run error]", e);
   }
 }
 
 // ================= API ROUTES =================
 
-app.get('/api/runs', (req, res) => {
+app.get("/api/runs", (req, res) => {
   const arr = Object.values(state.runs)
     .sort((a, b) => b.createdAt - a.createdAt)
     .map((run) => normalizeRun(run));
   res.json(arr);
 });
 
-app.get('/api/run/:id', (req, res) => {
+app.get("/api/run/:id", (req, res) => {
   const run = state.runs[req.params.id];
-  if (!run) return res.status(404).json({ error: 'not found' });
+  if (!run) return res.status(404).json({ error: "not found" });
   res.json(normalizeRun(run));
 });
 
 // Public API: trigger a run (used by dashboard + local dev)
-app.post('/api/run', async (req, res) => {
-  const url = (req.body && req.body.url) || '';
+app.post("/api/run", async (req, res) => {
+  const url = (req.body && req.body.url) || "";
   if (!/^https?:\/\//i.test(url) && !/^\//.test(url)) {
     return res.status(400).json({
-      error: 'Provide a valid http(s) URL (or a path served by this server).',
+      error: "Provide a valid http(s) URL (or a path served by this server).",
     });
   }
 
@@ -509,11 +488,11 @@ app.post('/api/run', async (req, res) => {
   const run = {
     id,
     url,
-    status: 'queued',
+    status: "queued",
     createdAt: Date.now(),
     results: {},
     diffs: {},
-    note: 'Baseline: chromium. Diff: firefox & webkit vs chromium.',
+    note: "Baseline: chromium. Diff: firefox & webkit vs chromium.",
   };
   state.runs[id] = run;
 
@@ -525,20 +504,20 @@ app.post('/api/run', async (req, res) => {
 });
 
 // CI-only API: trigger a run with shared secret
-app.post('/api/ci-run', async (req, res) => {
-  const authHeader = req.headers['authorization'] || '';
-  const token = authHeader.startsWith('Bearer ')
+app.post("/api/ci-run", async (req, res) => {
+  const authHeader = req.headers["authorization"] || "";
+  const token = authHeader.startsWith("Bearer ")
     ? authHeader.slice(7).trim()
     : null;
 
   if (process.env.TESTSPHERE_TOKEN && token !== process.env.TESTSPHERE_TOKEN) {
-    return res.status(401).json({ error: 'Unauthorized: invalid token' });
+    return res.status(401).json({ error: "Unauthorized: invalid token" });
   }
 
-  const url = (req.body && req.body.url) || '';
+  const url = (req.body && req.body.url) || "";
   if (!/^https?:\/\//i.test(url) && !/^\//.test(url)) {
     return res.status(400).json({
-      error: 'Provide a valid http(s) URL (or a path served by this server).',
+      error: "Provide a valid http(s) URL (or a path served by this server).",
     });
   }
 
@@ -546,11 +525,11 @@ app.post('/api/ci-run', async (req, res) => {
   const run = {
     id,
     url,
-    status: 'queued',
+    status: "queued",
     createdAt: Date.now(),
     results: {},
     diffs: {},
-    note: 'CI-triggered run. Baseline: chromium. Diff: firefox & webkit vs chromium.',
+    note: "CI-triggered run. Baseline: chromium. Diff: firefox & webkit vs chromium.",
   };
   state.runs[id] = run;
 
@@ -560,7 +539,7 @@ app.post('/api/ci-run', async (req, res) => {
 });
 
 // Simple healthcheck for Render / wait-on
-app.get('/api/health', (req, res) => res.json({ ok: true }));
+app.get("/api/health", (req, res) => res.json({ ok: true }));
 
 const port = process.env.PORT || 8080;
 app.listen(port, () => {
