@@ -225,6 +225,14 @@ const { chromium, firefox, webkit } = require('playwright');
 const app = express();
 app.use(express.json());
 
+/**
+ * Normalize a run before returning it to clients.
+ * - If screenshots exist but status is still "running"/"queued",
+ *   force it to "done" so the UI doesn't hang.
+ * - Ensure we always have diff objects for firefox & webkit:
+ *   * If real pixelmatch diff exists, keep it.
+ *   * Otherwise fall back to using the browser screenshot as "diff".
+ */
 function normalizeRun(run) {
   if (!run) return run;
 
@@ -240,6 +248,7 @@ function normalizeRun(run) {
     run.results.webkit.ok &&
     run.results.webkit.screenshot;
 
+  // If screenshots are there but status never got updated, mark as done
   if (
     (run.status === 'running' || run.status === 'queued') &&
     (hasChromium || hasWebkit)
@@ -247,8 +256,33 @@ function normalizeRun(run) {
     run.status = 'done';
   }
 
+  // Make sure diffs object exists
+  if (!run.diffs) run.diffs = {};
+
+  // Guarantee entries for firefox & webkit
+  ['firefox', 'webkit'].forEach((browser) => {
+    // If we already have a real diff from pixelmatch, keep it
+    if (run.diffs[browser] && run.diffs[browser].diffPath) return;
+
+    const result =
+      run.results && run.results[browser] && run.results[browser].ok
+        ? run.results[browser]
+        : null;
+
+    if (result && result.screenshot) {
+      // Fallback: use the raw browser screenshot as "diff"
+      run.diffs[browser] = {
+        against: 'chromium',
+        diffPath: result.screenshot,
+        mismatchPct: null, // unknown / not computed
+        note: 'No diff image generated; using browser screenshot as fallback.'
+      };
+    }
+  });
+
   return run;
 }
+
 
 const ROOT_DIR = path.resolve(__dirname);
 const RUNS_DIR = path.join(ROOT_DIR, 'runs');
