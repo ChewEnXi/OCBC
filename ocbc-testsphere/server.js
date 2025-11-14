@@ -444,6 +444,32 @@ async function executeVisualRun(run) {
         }
       }
     }
+    // --- Fallback: ensure we always have diff entries for dashboard ---
+    if (!run.diffs) run.diffs = {};
+
+    ['firefox', 'webkit'].forEach((browser) => {
+      const result =
+        run.results &&
+        run.results[browser] &&
+        run.results[browser].ok &&
+        run.results[browser].screenshot
+          ? run.results[browser]
+          : null;
+
+      // If no diff was generated above but we have a screenshot,
+      // use the browser screenshot itself as the "diff" image.
+      if (!run.diffs[browser] && result) {
+        run.diffs[browser] = {
+          against: 'chromium',
+          diffPath: result.screenshot,        // <-- important!
+          mismatchPct: null,
+          note: 'Fallback: using browser screenshot as diff image.'
+        };
+        console.log(
+          `[run ${id}] Fallback diff for ${browser} -> ${run.diffs[browser].diffPath}`
+        );
+      }
+    });
 
     run.status = 'done';
     run.duration = ((Date.now() - run.createdAt) / 1000).toFixed(1);
