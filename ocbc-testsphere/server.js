@@ -225,8 +225,23 @@ const { chromium, firefox, webkit } = require('playwright');
 const app = express();
 app.use(express.json());
 
-const RUNS_DIR = path.join(__dirname, 'runs');
-if (!fs.existsSync(RUNS_DIR)) fs.mkdirSync(RUNS_DIR);
+/**
+ * IMPORTANT PATHS
+ * On Render, __dirname will be the folder that contains:
+ *   - server.js
+ *   - web/
+ *   - ocbc-demo/
+ *   - runs/
+ */
+const ROOT_DIR = path.resolve(__dirname);
+const RUNS_DIR = path.join(ROOT_DIR, 'runs');
+
+console.log('[startup] ROOT_DIR =', ROOT_DIR);
+console.log('[startup] RUNS_DIR =', RUNS_DIR);
+
+if (!fs.existsSync(RUNS_DIR)) {
+  fs.mkdirSync(RUNS_DIR, { recursive: true });
+}
 
 const state = {
   // runId -> {
@@ -234,15 +249,15 @@ const state = {
   //   results: { [browser]: { screenshot, ok, error?, duration? } },
   //   diffs: { [browser]: { against, diffPath, mismatchPct, note? } }
   // }
-  runs: {}
+  runs: {},
 };
 
-// Serve dashboard
-app.use('/dashboard', express.static(path.join(__dirname, 'web')));
-// Serve generated artifacts
+// Serve dashboard UI
+app.use('/dashboard', express.static(path.join(ROOT_DIR, 'web')));
+// Serve generated artifacts (screenshots + diffs)
 app.use('/artifacts', express.static(RUNS_DIR));
 // Serve OCBC demo website
-app.use('/ocbc-demo', express.static(path.join(__dirname, 'ocbc-demo')));
+app.use('/ocbc-demo', express.static(path.join(ROOT_DIR, 'ocbc-demo')));
 
 // ===== Helper to execute a run (shared by /api/run and /api/ci-run) =====
 async function executeVisualRun(run) {
@@ -256,7 +271,7 @@ async function executeVisualRun(run) {
     const targets = [
       { name: 'chromium', launcher: chromium },
       { name: 'firefox', launcher: firefox },
-      { name: 'webkit', launcher: webkit }
+      { name: 'webkit', launcher: webkit },
     ];
 
     const viewport = { width: 1280, height: 800 };
@@ -286,7 +301,7 @@ async function executeVisualRun(run) {
           run.results[t.name] = {
             screenshot: `/artifacts/${id}/${t.name}.png`,
             ok: true,
-            duration
+            duration,
           };
           console.log(
             `[${new Date().toLocaleTimeString()}][run ${id}] ✅ ${t.name} done (${duration}s)`
@@ -299,7 +314,7 @@ async function executeVisualRun(run) {
           run.results[t.name] = {
             screenshot: null,
             ok: false,
-            error: err.message
+            error: err.message,
           };
         } finally {
           if (browser) {
@@ -321,12 +336,14 @@ async function executeVisualRun(run) {
         try {
           const targetPath = path.join(dir, `${target}.png`);
           if (!fs.existsSync(targetPath)) {
-            console.warn(`[run ${id}] No screenshot for ${target}, skipping diff.`);
+            console.warn(
+              `[run ${id}] No screenshot for ${target}, skipping diff.`
+            );
             run.diffs[target] = {
               against: 'chromium',
               diffPath: null,
               mismatchPct: null,
-              note: 'No screenshot'
+              note: 'No screenshot',
             };
             continue;
           }
@@ -362,7 +379,7 @@ async function executeVisualRun(run) {
           run.diffs[target] = {
             against: 'chromium',
             diffPath: `/artifacts/${id}/${target}-vs-chromium-diff.png`,
-            mismatchPct
+            mismatchPct,
           };
           console.log(`[run ${id}] Saved ${target} diff (${mismatchPct}%)`);
         } catch (err) {
@@ -371,7 +388,7 @@ async function executeVisualRun(run) {
             against: 'chromium',
             diffPath: null,
             mismatchPct: null,
-            note: err.message
+            note: err.message,
           };
         }
       }
@@ -409,7 +426,7 @@ app.post('/api/run', async (req, res) => {
   const url = (req.body && req.body.url) || '';
   if (!/^https?:\/\//i.test(url) && !/^\//.test(url)) {
     return res.status(400).json({
-      error: 'Provide a valid http(s) URL (or a path served by this server).'
+      error: 'Provide a valid http(s) URL (or a path served by this server).',
     });
   }
 
@@ -421,7 +438,7 @@ app.post('/api/run', async (req, res) => {
     createdAt: Date.now(),
     results: {},
     diffs: {},
-    note: 'Baseline: chromium. Diff: firefox & webkit vs chromium.'
+    note: 'Baseline: chromium. Diff: firefox & webkit vs chromium.',
   };
   state.runs[id] = run;
 
@@ -446,7 +463,7 @@ app.post('/api/ci-run', async (req, res) => {
   const url = (req.body && req.body.url) || '';
   if (!/^https?:\/\//i.test(url) && !/^\//.test(url)) {
     return res.status(400).json({
-      error: 'Provide a valid http(s) URL (or a path served by this server).'
+      error: 'Provide a valid http(s) URL (or a path served by this server).',
     });
   }
 
@@ -458,7 +475,7 @@ app.post('/api/ci-run', async (req, res) => {
     createdAt: Date.now(),
     results: {},
     diffs: {},
-    note: 'CI-triggered run. Baseline: chromium. Diff: firefox & webkit vs chromium.'
+    note: 'CI-triggered run. Baseline: chromium. Diff: firefox & webkit vs chromium.',
   };
   state.runs[id] = run;
 
@@ -467,7 +484,7 @@ app.post('/api/ci-run', async (req, res) => {
   await executeVisualRun(run);
 });
 
-// Healthcheck
+// Simple healthcheck for Render / wait-on
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 
 const port = process.env.PORT || 8080;
