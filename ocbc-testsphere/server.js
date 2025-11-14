@@ -225,14 +225,31 @@ const { chromium, firefox, webkit } = require('playwright');
 const app = express();
 app.use(express.json());
 
-/**
- * IMPORTANT PATHS
- * On Render, __dirname will be the folder that contains:
- *   - server.js
- *   - web/
- *   - ocbc-demo/
- *   - runs/
- */
+function normalizeRun(run) {
+  if (!run) return run;
+
+  const hasChromium =
+    run.results &&
+    run.results.chromium &&
+    run.results.chromium.ok &&
+    run.results.chromium.screenshot;
+
+  const hasWebkit =
+    run.results &&
+    run.results.webkit &&
+    run.results.webkit.ok &&
+    run.results.webkit.screenshot;
+
+  if (
+    (run.status === 'running' || run.status === 'queued') &&
+    (hasChromium || hasWebkit)
+  ) {
+    run.status = 'done';
+  }
+
+  return run;
+}
+
 const ROOT_DIR = path.resolve(__dirname);
 const RUNS_DIR = path.join(ROOT_DIR, 'runs');
 
@@ -406,19 +423,17 @@ async function executeVisualRun(run) {
 
 // ================= API ROUTES =================
 
-// API: list runs (newest first)
 app.get('/api/runs', (req, res) => {
-  const arr = Object.values(state.runs).sort(
-    (a, b) => b.createdAt - a.createdAt
-  );
+  const arr = Object.values(state.runs)
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .map((run) => normalizeRun(run));
   res.json(arr);
 });
 
-// API: get run by id
 app.get('/api/run/:id', (req, res) => {
   const run = state.runs[req.params.id];
   if (!run) return res.status(404).json({ error: 'not found' });
-  res.json(run);
+  res.json(normalizeRun(run));
 });
 
 // Public API: trigger a run (used by dashboard + local dev)
