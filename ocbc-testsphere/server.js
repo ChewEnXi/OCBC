@@ -238,7 +238,6 @@
 
 
 
-
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
@@ -362,7 +361,12 @@ async function executeVisualRun(run) {
           `[${new Date().toLocaleTimeString()}][run ${id}] Launching ${t.name}...`
         );
 
-        browser = await t.launcher.launch({ headless: true });
+        browser = await t.launcher.launch({
+          headless: true,
+          // extra flags to make Playwright more stable on Render/CI
+          args: ["--no-sandbox", "--disable-dev-shm-usage"],
+        });
+
         const ctx = await browser.newContext({ viewport });
         const page = await ctx.newPage();
 
