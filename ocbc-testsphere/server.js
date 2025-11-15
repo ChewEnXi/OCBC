@@ -237,14 +237,13 @@
 
 
 
-
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
 const { v4: uuidv4 } = require("uuid");
 const pixelmatch = require("pixelmatch");
 const { PNG } = require("pngjs");
-const { chromium, firefox, webkit } = require("playwright");
+const { chromium, webkit } = require("playwright"); // Chromium + WebKit only
 
 const app = express();
 app.use(express.json());
@@ -253,7 +252,7 @@ app.use(express.json());
  * Normalize a run before returning it to clients.
  * - If screenshots exist but status is still "running"/"queued",
  *   force it to "done" so the UI doesn't hang.
- * - Ensure we always have diff objects for firefox & webkit:
+ * - Ensure we always have a diff object for webkit:
  *   * If real pixelmatch diff exists, keep it.
  *   * Otherwise fall back to using the browser screenshot as "diff".
  */
@@ -283,8 +282,8 @@ function normalizeRun(run) {
   // Make sure diffs object exists
   if (!run.diffs) run.diffs = {};
 
-  // Guarantee entries for firefox & webkit
-  ["firefox", "webkit"].forEach((browser) => {
+  // Guarantee entry for webkit
+  ["webkit"].forEach((browser) => {
     // If we already have a real diff from pixelmatch, keep it
     if (run.diffs[browser] && run.diffs[browser].diffPath) return;
 
@@ -344,10 +343,18 @@ async function executeVisualRun(run) {
     const dir = path.join(RUNS_DIR, id);
     fs.mkdirSync(dir, { recursive: true });
 
+    // Per-browser configs – Chromium (baseline) + WebKit (comparison)
     const targets = [
-      { name: "chromium", launcher: chromium },
-      { name: "firefox", launcher: firefox },
-      { name: "webkit", launcher: webkit },
+      {
+        name: "chromium",
+        launcher: chromium,
+        args: ["--no-sandbox", "--disable-dev-shm-usage"],
+      },
+      {
+        name: "webkit",
+        launcher: webkit,
+        args: [], // WebKit is picky; no extra flags
+      },
     ];
 
     const viewport = { width: 1280, height: 800 };
@@ -361,16 +368,17 @@ async function executeVisualRun(run) {
           `[${new Date().toLocaleTimeString()}][run ${id}] Launching ${t.name}...`
         );
 
-        browser = await t.launcher.launch({
-          headless: true,
-          // extra flags to make Playwright more stable on Render/CI
-          args: ["--no-sandbox", "--disable-dev-shm-usage"],
-        });
+        const launchOptions = { headless: true };
+        if (t.args && t.args.length > 0) {
+          launchOptions.args = t.args;
+        }
+
+        browser = await t.launcher.launch(launchOptions);
 
         const ctx = await browser.newContext({ viewport });
         const page = await ctx.newPage();
 
-        // a bit less strict than "networkidle" – more forgiving on Render
+        // a bit less strict than "networkidle" – more forgiving on Render/CI
         await page.goto(url, {
           waitUntil: "domcontentloaded",
           timeout: 60_000,
@@ -407,7 +415,7 @@ async function executeVisualRun(run) {
       }
     }
 
-    // ------------ 2) DIFF FIREFOX & WEBKIT AGAINST CHROMIUM ------------
+    // ------------ 2) DIFF WEBKIT AGAINST CHROMIUM ------------
     const baselinePath = path.join(dir, "chromium.png");
 
     if (!fs.existsSync(baselinePath)) {
@@ -415,7 +423,7 @@ async function executeVisualRun(run) {
     } else {
       const baseline = PNG.sync.read(fs.readFileSync(baselinePath));
 
-      for (const target of ["firefox", "webkit"]) {
+      for (const target of ["webkit"]) {
         try {
           const targetPath = path.join(dir, `${target}.png`);
           if (!fs.existsSync(targetPath)) {
@@ -434,7 +442,7 @@ async function executeVisualRun(run) {
           const targetPng = PNG.sync.read(fs.readFileSync(targetPath));
 
           const width = Math.min(baseline.width, targetPng.width);
-          const height = Math.min(baseline.height, targetPng.height);
+          const height = Math.min(beline.height, targetPng.height);
           const area = width * height;
 
           const baseCrop = new PNG({ width, height });
@@ -522,7 +530,7 @@ app.post("/api/run", async (req, res) => {
     createdAt: Date.now(),
     results: {},
     diffs: {},
-    note: "Baseline: chromium. Diff: firefox & webkit vs chromium.",
+    note: "Baseline: chromium. Diff: webkit vs chromium.",
   };
   state.runs[id] = run;
 
@@ -559,7 +567,7 @@ app.post("/api/ci-run", async (req, res) => {
     createdAt: Date.now(),
     results: {},
     diffs: {},
-    note: "CI-triggered run. Baseline: chromium. Diff: firefox & webkit vs chromium.",
+    note: "CI-triggered run. Baseline: chromium. Diff: webkit vs chromium.",
   };
   state.runs[id] = run;
 
