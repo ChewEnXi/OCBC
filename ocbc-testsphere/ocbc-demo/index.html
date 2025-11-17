@@ -27,206 +27,216 @@
         <a href="#help">Help</a>
       </nav>
       <button class="nav-toggle" id="nav-toggle" aria-label="Toggle menu">☰</button>
+      <!-- Logout button appears only after login -->
+      <button id="logout-btn" class="btn small" style="display:none; margin-left: 0.75rem;">
+        Logout
+      </button>
     </div>
   </header>
 
   <main>
-    <!-- Hero / overview -->
+    <!-- Hero / overview (Login section always visible) -->
     <section id="overview" class="section hero">
       <div class="hero-grid">
         <div class="hero-text">
-          <h1>Welcome to OCBC Demo Online Bankin</h1>
+          <h1>Welcome to OCBC Demo Online Banking (Visual Test Demo)</h1>
           <p>
             This is a demo interface that simulates a simple online banking dashboard.
             No real data, just a clean UI you can use for testing.
           </p>
           <ul class="hero-list">
-            <li>View account balance & recent transactions</li>
+            <li>View account balance &amp; recent transactions</li>
             <li>Simulated fund transfers between accounts</li>
-            <li>Responsive layout for desktop & mobile</li>
+            <li>Responsive layout for desktop &amp; mobile</li>
           </ul>
         </div>
 
         <div class="hero-card">
           <h2>Demo Login (Demo only)</h2>
-          <p class="muted small">Use any values – this is for front-end demo only.</p>
+          <p class="muted small">
+            Use the hard-coded demo credentials below to test flows:
+            <br />User ID: <strong>demo</strong> &nbsp;·&nbsp; PIN: <strong>1234</strong>
+          </p>
           <form id="login-form" class="form">
             <label>
               User ID
-              <input type="text" id="userId" placeholder="e.g. demo123" required />
+              <input type="text" id="userId" placeholder="demo" required />
             </label>
             <label>
               PIN
-              <input type="password" id="pin" placeholder="••••••" minlength="4" required />
+              <input type="password" id="pin" placeholder="1234" minlength="4" required />
             </label>
             <button type="submit" class="btn primary full">Log in</button>
-            <p id="login-status" class="status-text muted small"></p>
+            <p id="login-status" class="status-text small"></p>
           </form>
         </div>
       </div>
     </section>
 
-    <!-- Accounts -->
-    <section id="accounts" class="section">
-      <div class="section-header">
-        <h2>Your accounts</h2>
-        <p class="muted">
-          The balances below are demo values. Use this to test layouts, screenshots, and flows.
-        </p>
-      </div>
-
-      <div class="accounts-grid">
-        <article class="card account-card">
-          <div class="card-header">
-            <span class="badge">Current Account</span>
-            <span class="card-label">OCBC 360</span>
-          </div>
-          <div class="balance">
-            <span class="balance-label">Available balance</span>
-            <span class="balance-value">SGD 5,420.15</span>
-          </div>
-          <ul class="meta-list">
-            <li>Account no.: •••• 1234</li>
-            <li>Interest rate: 0.30% p.a.</li>
-          </ul>
-        </article>
-
-        <article class="card account-card">
-          <div class="card-header">
-            <span class="badge badge-secondary">Savings</span>
-            <span class="card-label">OCBC Statement Savings</span>
-          </div>
-          <div class="balance">
-            <span class="balance-label">Available balance</span>
-            <span class="balance-value">SGD 12,834.90</span>
-          </div>
-          <ul class="meta-list">
-            <li>Account no.: •••• 5678</li>
-            <li>Interest rate: 0.05% p.a.</li>
-          </ul>
-        </article>
-
-        <article class="card account-card">
-          <div class="card-header">
-            <span class="badge badge-outline">Card</span>
-            <span class="card-label">OCBC Titanium Rewards</span>
-          </div>
-          <div class="balance">
-            <span class="balance-label">Outstanding balance</span>
-            <span class="balance-value negative">SGD -842.30</span>
-          </div>
-          <ul class="meta-list">
-            <li>Card no.: •••• 9012</li>
-            <li>Statement due: 25th of each month</li>
-          </ul>
-        </article>
-      </div>
-    </section>
-
-    <!-- Payments & transfers -->
-    <section id="payments" class="section section-alt">
-      <div class="section-header">
-        <h2>Quick actions</h2>
-        <p class="muted">
-          Simulated actions for UI testing – no actual transactions are performed.
-        </p>
-      </div>
-
-      <div class="actions-grid">
-        <!-- Transfer form -->
-        <div class="card">
-          <h3>Transfer between accounts (Demo)</h3>
-          <form id="transfer-form" class="form">
-            <label>
-              From account
-              <select id="fromAccount" required>
-                <option value="">Select account</option>
-                <option value="Current (•••• 1234)">Current (•••• 1234)</option>
-                <option value="Savings (•••• 5678)">Savings (•••• 5678)</option>
-              </select>
-            </label>
-            <label>
-              To account
-              <select id="toAccount" required>
-                <option value="">Select account</option>
-                <option value="Current (•••• 1234)">Current (•••• 1234)</option>
-                <option value="Savings (•••• 5678)">Savings (•••• 5678)</option>
-              </select>
-            </label>
-            <label>
-              Amount (SGD)
-              <input type="number" id="amount" min="1" step="0.01" required />
-            </label>
-            <button type="submit" class="btn secondary full">Simulate transfer</button>
-            <p id="transfer-status" class="status-text small"></p>
-          </form>
-        </div>
-
-        <!-- Recent transactions -->
-        <div class="card">
-          <h3>Recent transactions (Demo)</h3>
-          <div class="table-wrapper">
-            <table class="table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Description</th>
-                  <th class="align-right">Amount (SGD)</th>
-                </tr>
-              </thead>
-              <tbody id="tx-body">
-                <tr>
-                  <td>09 Nov</td>
-                  <td>GrabPay Top-up</td>
-                  <td class="align-right">- 25.00</td>
-                </tr>
-                <tr>
-                  <td>08 Nov</td>
-                  <td>Salary Credit</td>
-                  <td class="align-right positive">+ 3,200.00</td>
-                </tr>
-                <tr>
-                  <td>07 Nov</td>
-                  <td>PayWave – FairPrice</td>
-                  <td class="align-right">- 42.30</td>
-                </tr>
-                <tr>
-                  <td>06 Nov</td>
-                  <td>GIRO – Mobile Bill</td>
-                  <td class="align-right">- 68.00</td>
-                </tr>
-                <tr>
-                  <td>05 Nov</td>
-                  <td>PayNow – Alex Tan</td>
-                  <td class="align-right">- 120.00</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <p class="muted tiny">
-            Transactions above are sample data for demonstration purposes only.
+    <!-- Everything inside app-content is hidden until login -->
+    <div id="app-content" style="display:none;">
+      <!-- Accounts -->
+      <section id="accounts" class="section">
+        <div class="section-header">
+          <h2>Your accounts</h2>
+          <p class="muted">
+            The balances below are demo values. Use this to test layouts, screenshots, and flows.
           </p>
         </div>
-      </div>
-    </section>
 
-    <!-- Help -->
-    <section id="help" class="section">
-      <div class="section-header">
-        <h2>Need help?</h2>
-        <p class="muted">
-          Since this is a demo site, please do not enter any real banking information.
-          Use it purely for testing and UI experiments.
-        </p>
-      </div>
-      <div class="card help-card">
-        <ul>
-          <li>This demo runs fully in your browser (no backend APIs).</li>
-          <li>You can safely run tests, take screenshots, or try automation tools.</li>
-          <li>To reset forms, just refresh the page.</li>
-        </ul>
-      </div>
-    </section>
+        <div class="accounts-grid">
+          <article class="card account-card">
+            <div class="card-header">
+              <span class="badge">Current Account</span>
+              <span class="card-label">OCBC 360</span>
+            </div>
+            <div class="balance">
+              <span class="balance-label">Available balance</span>
+              <span class="balance-value">SGD 5,420.15</span>
+            </div>
+            <ul class="meta-list">
+              <li>Account no.: •••• 1234</li>
+              <li>Interest rate: 0.30% p.a.</li>
+            </ul>
+          </article>
+
+          <article class="card account-card">
+            <div class="card-header">
+              <span class="badge badge-secondary">Savings</span>
+              <span class="card-label">OCBC Statement Savings</span>
+            </div>
+            <div class="balance">
+              <span class="balance-label">Available balance</span>
+              <span class="balance-value">SGD 12,834.90</span>
+            </div>
+            <ul class="meta-list">
+              <li>Account no.: •••• 5678</li>
+              <li>Interest rate: 0.05% p.a.</li>
+            </ul>
+          </article>
+
+          <article class="card account-card">
+            <div class="card-header">
+              <span class="badge badge-outline">Card</span>
+              <span class="card-label">OCBC Titanium Rewards</span>
+            </div>
+            <div class="balance">
+              <span class="balance-label">Outstanding balance</span>
+              <span class="balance-value negative">SGD -842.30</span>
+            </div>
+            <ul class="meta-list">
+              <li>Card no.: •••• 9012</li>
+              <li>Statement due: 25th of each month</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <!-- Payments & transfers -->
+      <section id="payments" class="section section-alt">
+        <div class="section-header">
+          <h2>Quick actions</h2>
+          <p class="muted">
+            Simulated actions for UI testing – no actual transactions are performed.
+          </p>
+        </div>
+
+        <div class="actions-grid">
+          <!-- Transfer form -->
+          <div class="card">
+            <h3>Transfer between accounts (Demo)</h3>
+            <form id="transfer-form" class="form">
+              <label>
+                From account
+                <select id="fromAccount" required>
+                  <option value="">Select account</option>
+                  <option value="Current (•••• 1234)">Current (•••• 1234)</option>
+                  <option value="Savings (•••• 5678)">Savings (•••• 5678)</option>
+                </select>
+              </label>
+              <label>
+                To account
+                <select id="toAccount" required>
+                  <option value="">Select account</option>
+                  <option value="Current (•••• 1234)">Current (•••• 1234)</option>
+                  <option value="Savings (•••• 5678)">Savings (•••• 5678)</option>
+                </select>
+              </label>
+              <label>
+                Amount (SGD)
+                <input type="number" id="amount" min="1" step="0.01" required />
+              </label>
+              <button type="submit" class="btn secondary full">Simulate transfer</button>
+              <p id="transfer-status" class="status-text small"></p>
+            </form>
+          </div>
+
+          <!-- Recent transactions -->
+          <div class="card">
+            <h3>Recent transactions (Demo)</h3>
+            <div class="table-wrapper">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Description</th>
+                    <th class="align-right">Amount (SGD)</th>
+                  </tr>
+                </thead>
+                <tbody id="tx-body">
+                  <tr>
+                    <td>09 Nov</td>
+                    <td>GrabPay Top-up</td>
+                    <td class="align-right">- 25.00</td>
+                  </tr>
+                  <tr>
+                    <td>08 Nov</td>
+                    <td>Salary Credit</td>
+                    <td class="align-right positive">+ 3,200.00</td>
+                  </tr>
+                  <tr>
+                    <td>07 Nov</td>
+                    <td>PayWave – FairPrice</td>
+                    <td class="align-right">- 42.30</td>
+                  </tr>
+                  <tr>
+                    <td>06 Nov</td>
+                    <td>GIRO – Mobile Bill</td>
+                    <td class="align-right">- 68.00</td>
+                  </tr>
+                  <tr>
+                    <td>05 Nov</td>
+                    <td>PayNow – Alex Tan</td>
+                    <td class="align-right">- 120.00</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="muted tiny">
+              Transactions above are sample data for demonstration purposes only.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Help -->
+      <section id="help" class="section">
+        <div class="section-header">
+          <h2>Need help?</h2>
+          <p class="muted">
+            Since this is a demo site, please do not enter any real banking information.
+            Use it purely for testing and UI experiments.
+          </p>
+        </div>
+        <div class="card help-card">
+          <ul>
+            <li>This demo runs fully in your browser (no backend APIs).</li>
+            <li>You can safely run tests, take screenshots, or try automation tools.</li>
+            <li>To reset forms, just refresh the page.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
   </main>
 
   <footer class="footer">
@@ -235,6 +245,80 @@
     </span>
   </footer>
 
-  <script src="main.js"></script>
+  <!-- Inline demo logic: login + logout + simple nav toggle -->
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const loginForm   = document.getElementById("login-form");
+      const loginStatus = document.getElementById("login-status");
+      const appContent  = document.getElementById("app-content");
+      const logoutBtn   = document.getElementById("logout-btn");
+      const navToggle   = document.getElementById("nav-toggle");
+      const navLinks    = document.getElementById("nav-links");
+
+      const VALID_USER = "demo";
+      const VALID_PIN  = "1234";
+
+      function showApp() {
+        if (loginForm) loginForm.style.display = "none";
+        if (appContent) appContent.style.display = "block";
+        if (logoutBtn) logoutBtn.style.display = "inline-block";
+      }
+
+      function hideApp() {
+        if (loginForm) loginForm.style.display = "block";
+        if (appContent) appContent.style.display = "none";
+        if (logoutBtn) logoutBtn.style.display = "none";
+        if (loginStatus) {
+          loginStatus.textContent = "";
+        }
+      }
+
+      // Restore state from localStorage
+      if (localStorage.getItem("loggedIn") === "true") {
+        showApp();
+      } else {
+        hideApp();
+      }
+
+      // Handle login submit
+      if (loginForm) {
+        loginForm.addEventListener("submit", (e) => {
+          e.preventDefault();
+
+          const user = document.getElementById("userId").value.trim();
+          const pin  = document.getElementById("pin").value.trim();
+
+          if (user === VALID_USER && pin === VALID_PIN) {
+            if (loginStatus) {
+              loginStatus.textContent = "Login successful!";
+              loginStatus.style.color = "green";
+            }
+            localStorage.setItem("loggedIn", "true");
+            setTimeout(showApp, 400);
+          } else {
+            if (loginStatus) {
+              loginStatus.textContent = "Invalid User ID or PIN";
+              loginStatus.style.color = "red";
+            }
+          }
+        });
+      }
+
+      // Handle logout click
+      if (logoutBtn) {
+        logoutBtn.addEventListener("click", () => {
+          localStorage.removeItem("loggedIn");
+          hideApp();
+        });
+      }
+
+      // Simple mobile nav toggle (optional)
+      if (navToggle && navLinks) {
+        navToggle.addEventListener("click", () => {
+          navLinks.classList.toggle("is-open");
+        });
+      }
+    });
+  </script>
 </body>
 </html>
