@@ -1,24 +1,27 @@
 // playwright/loginScenario.js
-// Reusable scenario: open page, log in with demo credentials, wait for accounts.
+// Reusable scenario: open page, log in with demo credentials, wait for logged-in banner.
 
 async function loginAndWait(page, url) {
-  // Go to the demo page
+  // 1. Go to the demo page
   await page.goto(url, {
     waitUntil: "networkidle",
     timeout: 60_000,
   });
 
-  // Fill the hard-coded demo credentials
+  // 2. Fill the demo credentials
   await page.fill("#userId", "demo");
   await page.fill("#pin", "1234");
 
-  // Click the login button (the one inside the form)
+  // 3. Click the login button
   await page.click("#login-form button[type='submit']");
 
-  // Wait for the accounts section to appear
-  await page.waitForSelector("#accounts", { timeout: 10_000 });
+  // 4. ✅ Wait specifically for the "logged in" banner
+  await page.waitForSelector("#logged-in-status", {
+    state: "visible",
+    timeout: 10_000,
+  });
 
-  // Small extra delay so UI can settle
+  // Optional: small delay so UI is fully settled for a nice screenshot
   await page.waitForTimeout(500);
 }
 
