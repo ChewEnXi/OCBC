@@ -535,7 +535,6 @@
 
 
 
-
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
@@ -543,7 +542,7 @@ const { v4: uuidv4 } = require("uuid");
 const pixelmatch = require("pixelmatch");
 const { PNG } = require("pngjs");
 const { chromium, firefox, webkit } = require("playwright");
-const { loginAndWait } = require("./playwright/loginScenario"); // 👈 NEW
+const { loginAndWait } = require("./playwright/loginScenario");
 
 const app = express();
 app.use(express.json());
@@ -560,7 +559,16 @@ if (!fs.existsSync(RUNS_DIR)) {
 const state = {
   // runId -> {
   //   id, url, status, createdAt,
-  //   results: { [browser]: { screenshot, ok, error?, duration? } },
+  //   results: {
+  //     [browser]: {
+  //       screenshotBefore?,
+  //       screenshotAfter?,
+  //       screenshot, // kept for backward-compat (after-login)
+  //       ok,
+  //       error?,
+  //       duration?
+  //     }
+  //   },
   //   diffs: { [browser]: { against, diffPath, mismatchPct, note? } }
   // }
   runs: {},
@@ -573,7 +581,7 @@ const state = {
  * - If screenshots exist but status is still "running"/"queued", mark as "done".
  * - Ensure we always have diff objects for firefox & webkit:
  *   - If real pixelmatch diff exists, keep it.
- *   - Otherwise fall back to using the browser screenshot as "diff".
+ *   - Otherwise fall back to using the browser AFTER-login screenshot as "diff".
  */
 function normalizeRun(run) {
   if (!run) return run;
@@ -605,7 +613,7 @@ function normalizeRun(run) {
         : null;
 
     if (result && result.screenshot) {
-      // Fallback: use the raw browser screenshot as "diff"
+      // Fallback: use the AFTER-login screenshot as "diff"
       run.diffs[browser] = {
         against: "chromium",
         diffPath: result.screenshot,
@@ -644,7 +652,7 @@ async function executeVisualRun(run) {
 
     const viewport = { width: 1280, height: 800 };
 
-    // ---- 1) TAKE SCREENSHOTS (SEQUENTIAL – safer on small containers) ----
+    // ---- 1) TAKE SCREENSHOTS (BEFORE + AFTER LOGIN) ----
     for (const t of targets) {
       let browser;
       try {
@@ -653,20 +661,34 @@ async function executeVisualRun(run) {
           `[${new Date().toLocaleTimeString()}][run ${id}] Launching ${t.name}...`
         );
 
-        // In the Playwright Docker image, default launch options are fine.
         browser = await t.launcher.launch({ headless: true });
-
         const ctx = await browser.newContext({ viewport });
         const page = await ctx.newPage();
 
-        // 🔐 Run hard-coded login scenario before screenshot
-        await loginAndWait(page, url);
+        // 1) Go to the page once
+        await page.goto(url, {
+          waitUntil: "networkidle",
+          timeout: 60_000,
+        });
 
-        const outPath = path.join(dir, `${t.name}.png`);
-        await page.screenshot({ path: outPath, fullPage: true });
+        // 2) BEFORE-login screenshot
+        const beforePath = path.join(dir, `${t.name}-before.png`);
+        await page.screenshot({ path: beforePath, fullPage: true });
+
+        // 3) Perform login (WITHOUT reloading)
+        //    We pass skipGoto: true so loginAndWait doesn't call page.goto again.
+        await loginAndWait(page, url, { skipGoto: true });
+
+        // 4) AFTER-login screenshot
+        const afterPath = path.join(dir, `${t.name}.png`);
+        await page.screenshot({ path: afterPath, fullPage: true });
 
         const duration = ((Date.now() - start) / 1000).toFixed(1);
+
+        // Store both before & after paths (and keep 'screenshot' pointing to AFTER)
         run.results[t.name] = {
+          screenshotBefore: `/artifacts/${id}/${t.name}-before.png`,
+          screenshotAfter: `/artifacts/${id}/${t.name}.png`,
           screenshot: `/artifacts/${id}/${t.name}.png`,
           ok: true,
           duration,
@@ -681,6 +703,8 @@ async function executeVisualRun(run) {
           err
         );
         run.results[t.name] = {
+          screenshotBefore: null,
+          screenshotAfter: null,
           screenshot: null,
           ok: false,
           error: err.message,
@@ -692,7 +716,7 @@ async function executeVisualRun(run) {
       }
     }
 
-    // ---- 2) DIFF FIREFOX & WEBKIT AGAINST CHROMIUM ----
+    // ---- 2) DIFF FIREFOX & WEBKIT AGAINST CHROMIUM (AFTER LOGIN) ----
     const baselinePath = path.join(dir, "chromium.png");
 
     if (!fs.existsSync(baselinePath)) {

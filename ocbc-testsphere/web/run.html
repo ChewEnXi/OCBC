@@ -100,8 +100,19 @@
       el.className = 'pill ' + (status === 'done' ? 'ok' : status === 'error' ? 'err' : 'warn');
       el.textContent = status.toUpperCase();
     }
+
     function panelTemplate(title, imgSrc, extra=''){
       const safeSrc = imgSrc || '';
+      if (!safeSrc) {
+        return `
+          <div>
+            <div class="muted" style="margin-bottom:6px;"><b>${title}</b> ${extra}</div>
+            <div class="imgwrap">
+              <div class="muted">No image available</div>
+            </div>
+          </div>
+        `;
+      }
       return `
         <div>
           <div class="muted" style="margin-bottom:6px;"><b>${title}</b> ${extra}</div>
@@ -118,19 +129,40 @@
     async function main(){
       const id = getId();
       if (!id){ document.getElementById('runTitle').textContent = 'Run not found'; return; }
+
       const res = await fetch('/api/run/' + id);
       const run = await res.json();
+
       document.getElementById('runTitle').textContent = new Date(run.createdAt).toLocaleString();
-      document.getElementById('runMeta').textContent = run.url + ' • Baseline: Chromium • Diff: Firefox/WebKit';
+      document.getElementById('runMeta').textContent =
+        run.url + ' • Baseline: Chromium • Before/After login • Diff: Firefox/WebKit';
+
       badge(document.getElementById('statusPill'), run.status);
 
       const panels = document.getElementById('panels');
       const r = run.results || {};
       const d = run.diffs || {};
+
       panels.innerHTML = [
-        panelTemplate('Chromium (baseline)', r.chromium?.screenshot || ''),
-        panelTemplate('Firefox vs Chromium', d.firefox?.diffPath || '', `(${d.firefox?.mismatchPct ?? '-'}%)`),
-        panelTemplate('WebKit vs Chromium', d.webkit?.diffPath || '', `(${d.webkit?.mismatchPct ?? '-'}%)`)
+        // 1–6: BEFORE + AFTER for each browser
+        panelTemplate('Chromium — BEFORE login', r.chromium?.screenshotBefore || ''),
+        panelTemplate('Chromium — AFTER login',  r.chromium?.screenshotAfter  || r.chromium?.screenshot || ''),
+        panelTemplate('Firefox — BEFORE login',  r.firefox?.screenshotBefore  || ''),
+        panelTemplate('Firefox — AFTER login',   r.firefox?.screenshotAfter   || r.firefox?.screenshot || ''),
+        panelTemplate('WebKit — BEFORE login',   r.webkit?.screenshotBefore   || ''),
+        panelTemplate('WebKit — AFTER login',    r.webkit?.screenshotAfter    || r.webkit?.screenshot || ''),
+
+        // 7–8: Diff images
+        panelTemplate(
+          'Firefox vs Chromium (diff)',
+          d.firefox?.diffPath || '',
+          `(${d.firefox?.mismatchPct ?? '-'}%)`
+        ),
+        panelTemplate(
+          'WebKit vs Chromium (diff)',
+          d.webkit?.diffPath || '',
+          `(${d.webkit?.mismatchPct ?? '-'}%)`
+        )
       ].join('');
 
       const zoom = document.getElementById('zoom');
